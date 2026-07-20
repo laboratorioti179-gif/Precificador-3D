@@ -167,7 +167,6 @@ Detalhes do Projeto:
 
   const generatePdfAction = () => {
     const element = pdfTemplateRef.current;
-    element.style.display = 'block'; // Make visible for capture
     
     let nomeArquivo = 'Orcamento_Impressao_3D';
     if(formData.nomeCliente) {
@@ -179,16 +178,14 @@ Detalhes do Projeto:
         margin:       0,
         filename:     nomeArquivo,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
 
     window.html2pdf().set(opt).from(element).save().then(() => {
-        element.style.display = 'none'; // Hide again
         showToast("PDF gerado!");
     }).catch(err => {
         console.error(err);
-        element.style.display = 'none';
         showToast("Erro ao gerar PDF.");
     });
   };
@@ -460,8 +457,8 @@ Detalhes do Projeto:
         </div>
       </main>
 
-      {/* Hidden PDF Template (Focused on Client) */}
-      <div style={{ display: 'none' }}>
+      {/* Hidden PDF Template (Mantido na DOM com opacidade 0 para o html2canvas capturar perfeitamente) */}
+      <div style={{ position: 'absolute', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
         <div ref={pdfTemplateRef} style={{ background: 'white', color: '#0f172a', padding: '50px', fontFamily: 'sans-serif', width: '800px', minHeight: '800px' }}>
           
           <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '40px', textAlign: 'center' }}>

@@ -148,6 +148,12 @@ Detalhes do Projeto:
   const handlePdf = () => {
     showToast('Gerando PDF...');
     
+    // Atualiza a data e hora do PDF exatamente no momento do clique
+    const dateElement = document.getElementById('pdf-date-text');
+    if (dateElement) {
+      dateElement.innerText = `Data de emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`;
+    }
+
     // Dynamically load html2pdf if not present
     if (typeof window.html2pdf === 'undefined') {
       const script = document.createElement('script');
@@ -459,13 +465,8 @@ Detalhes do Projeto:
         <div ref={pdfTemplateRef} style={{ background: 'white', color: '#0f172a', padding: '50px', fontFamily: 'sans-serif', width: '800px', minHeight: '800px' }}>
           
           <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '40px', textAlign: 'center' }}>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px' }}>Proposta Comercial</h1>
-            <p style={{ margin: '10px 0 0 0', color: '#64748b', fontSize: '14px' }}>Data de emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}</p>
-          </div>
-
-          <div style={{ marginBottom: '40px', fontSize: '16px', lineHeight: '1.6', color: '#334155' }}>
-            <p style={{ marginBottom: '10px' }}>Olá <strong style={{ color: '#0f172a' }}>{formData.nomeCliente || 'Cliente'}</strong>,</p>
-            <p style={{ margin: '0' }}>Agradecemos o seu interesse em nossos serviços de impressão 3D. Conforme solicitado, apresentamos abaixo o orçamento detalhado para a produção do seu projeto com o máximo de qualidade e precisão.</p>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px' }}>Orçamento</h1>
+            <p id="pdf-date-text" style={{ margin: '10px 0 0 0', color: '#64748b', fontSize: '14px' }}>Data de emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}</p>
           </div>
 
           <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '25px', marginBottom: '40px' }}>
@@ -473,8 +474,12 @@ Detalhes do Projeto:
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
               <tbody>
                 <tr>
-                  <td style={{ padding: '12px 0', width: '30%', color: '#64748b', fontWeight: '500' }}>Peça / Projeto:</td>
-                  <td style={{ padding: '12px 0', fontWeight: '600', color: '#0f172a' }}>{formData.nomePeca || 'Não informado'}</td>
+                  <td style={{ padding: '12px 0', width: '30%', color: '#64748b', fontWeight: '500' }}>Cliente:</td>
+                  <td style={{ padding: '12px 0', fontWeight: '600', color: '#0f172a' }}>{formData.nomeCliente || 'Não informado'}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Peça / Projeto:</td>
+                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.nomePeca || 'Não informado'}</td>
                 </tr>
                 <tr>
                   <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Material Sugerido:</td>

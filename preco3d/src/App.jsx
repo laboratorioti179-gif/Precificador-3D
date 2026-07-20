@@ -4,7 +4,86 @@ import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calc
 export default function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
-  
+
+  // Add this new useEffect block right here
+  useEffect(() => {
+    // 1. Set the Title
+    document.title = "PrintPrice 3D";
+
+    // 2. Add Meta Tags for Mobile
+    const metaThemeColor = document.createElement('meta');
+    metaThemeColor.name = "theme-color";
+    metaThemeColor.content = darkMode ? "#020617" : "#f8fafc"; // Adjust based on dark mode
+    document.head.appendChild(metaThemeColor);
+
+    const metaAppleStatus = document.createElement('meta');
+    metaAppleStatus.name = "apple-mobile-web-app-status-bar-style";
+    metaAppleStatus.content = "black-translucent";
+    document.head.appendChild(metaAppleStatus);
+
+    const metaAppleCapable = document.createElement('meta');
+    metaAppleCapable.name = "apple-mobile-web-app-capable";
+    metaAppleCapable.content = "yes";
+    document.head.appendChild(metaAppleCapable);
+    
+    // 3. Add Icon Links
+    // You will need to replace these placeholder URLs with actual URLs to your images.
+    // For a real app, you should host these images online.
+    const iconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png"; // Placeholder icon (Box)
+    const appleIconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png"; // Placeholder for iOS
+
+    const linkFavicon = document.createElement('link');
+    linkFavicon.rel = "icon";
+    linkFavicon.href = iconUrl;
+    linkFavicon.type = "image/png";
+    document.head.appendChild(linkFavicon);
+
+    const linkAppleTouch = document.createElement('link');
+    linkAppleTouch.rel = "apple-touch-icon";
+    linkAppleTouch.href = appleIconUrl;
+    document.head.appendChild(linkAppleTouch);
+
+    // 4. (Optional) Create a dynamic Manifest
+    const manifest = {
+      "name": "PrintPrice 3D",
+      "short_name": "PrintPrice",
+      "start_url": ".",
+      "display": "standalone",
+      "background_color": "#020617",
+      "theme_color": "#2563eb",
+      "icons": [
+        {
+          "src": iconUrl,
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": iconUrl,
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
+    };
+    
+    const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const manifestUrl = URL.createObjectURL(manifestBlob);
+    const linkManifest = document.createElement('link');
+    linkManifest.rel = "manifest";
+    linkManifest.href = manifestUrl;
+    document.head.appendChild(linkManifest);
+
+    // Cleanup function when component unmounts (optional but good practice)
+    return () => {
+       document.head.removeChild(metaThemeColor);
+       document.head.removeChild(metaAppleStatus);
+       document.head.removeChild(metaAppleCapable);
+       document.head.removeChild(linkFavicon);
+       document.head.removeChild(linkAppleTouch);
+       document.head.removeChild(linkManifest);
+       URL.revokeObjectURL(manifestUrl);
+    };
+  }, []); // Run once on mount
+
   // Data State
   const [formData, setFormData] = useState({
     nomePeca: '',
@@ -53,12 +132,11 @@ export default function App() {
 
   // Auto-calculate whenever formData changes
   useEffect(() => {
-    let custoFilamento = 0;
-    formData.filamentos.forEach(f => {
-      const peso = Number(f.peso) || 0;
-      const valorKg = Number(f.valorKg) || 0;
-      custoFilamento += (peso / 1000) * valorKg;
-    });
+    const custoFilamento = formData.filamentos.reduce((acc, f) => {
+      const pesoKg = (Number(f.peso) || 0) / 1000;
+      const valor = Number(f.valorKg) || 0;
+      return acc + (pesoKg * valor);
+    }, 0);
 
     const tempoHoras = Number(formData.tempoImpressao) || 0;
     const potencia = Number(formData.potenciaImpressora) || 0;
@@ -103,6 +181,14 @@ export default function App() {
       lucroLiquido
     });
   }, [formData]);
+
+  // Update theme-color meta tag when darkMode changes
+  useEffect(() => {
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+        metaThemeColor.content = darkMode ? "#020617" : "#f8fafc";
+    }
+  }, [darkMode]);
 
   const handleFilamentoChange = (id, field, value) => {
     setFormData(prev => ({

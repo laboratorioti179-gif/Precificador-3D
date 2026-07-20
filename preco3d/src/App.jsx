@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle } from 'lucide-react';
+import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2 } from 'lucide-react';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(true);
@@ -9,10 +9,7 @@ export default function App() {
   const [formData, setFormData] = useState({
     nomePeca: '',
     nomeCliente: '',
-    pesoPeca: 180,
     tempoImpressao: 18,
-    tipoFilamento: '',
-    valorKgFilamento: 120,
     potenciaImpressora: 120,
     valorKwh: 0.95,
     depreciacaoHora: 0.35,
@@ -21,7 +18,10 @@ export default function App() {
     valorMateriaisExtras: 8.50,
     taxaManutencao: 10,
     taxaPerdas: 10,
-    margemLucro: 100
+    margemLucro: 100,
+    filamentos: [
+      { id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }
+    ]
   });
 
   // Results State
@@ -41,11 +41,24 @@ export default function App() {
 
   const pdfTemplateRef = useRef(null);
 
+  // Derived State for UI and Copy
+  const pesoTotal = formData.filamentos.reduce((acc, f) => acc + (Number(f.peso) || 0), 0);
+  const detalhesFilamentos = formData.filamentos.map(f => {
+    const partes = [];
+    if (f.tipo) partes.push(f.tipo);
+    if (f.cor) partes.push(f.cor);
+    const nome = partes.length > 0 ? partes.join(' ') : 'Filamento';
+    return `${nome} (${f.peso}g)`;
+  }).join(', ');
+
   // Auto-calculate whenever formData changes
   useEffect(() => {
-    const peso = Number(formData.pesoPeca) || 0;
-    const valorKg = Number(formData.valorKgFilamento) || 0;
-    const custoFilamento = (peso / 1000) * valorKg;
+    let custoFilamento = 0;
+    formData.filamentos.forEach(f => {
+      const peso = Number(f.peso) || 0;
+      const valorKg = Number(f.valorKg) || 0;
+      custoFilamento += (peso / 1000) * valorKg;
+    });
 
     const tempoHoras = Number(formData.tempoImpressao) || 0;
     const potencia = Number(formData.potenciaImpressora) || 0;
@@ -91,6 +104,27 @@ export default function App() {
     });
   }, [formData]);
 
+  const handleFilamentoChange = (id, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      filamentos: prev.filamentos.map(f => f.id === id ? { ...f, [field]: value } : f)
+    }));
+  };
+
+  const addFilamento = () => {
+    setFormData(prev => ({
+      ...prev,
+      filamentos: [...prev.filamentos, { id: Date.now().toString(), tipo: '', cor: '', peso: 0, valorKg: 120 }]
+    }));
+  };
+
+  const removeFilamento = (id) => {
+    setFormData(prev => {
+      if (prev.filamentos.length <= 1) return prev; // Mantém pelo menos um
+      return { ...prev, filamentos: prev.filamentos.filter(f => f.id !== id) };
+    });
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -100,10 +134,7 @@ export default function App() {
     setFormData({
       nomePeca: '',
       nomeCliente: '',
-      pesoPeca: 180,
       tempoImpressao: 18,
-      tipoFilamento: '',
-      valorKgFilamento: 120,
       potenciaImpressora: 120,
       valorKwh: 0.95,
       depreciacaoHora: 0.35,
@@ -112,7 +143,10 @@ export default function App() {
       valorMateriaisExtras: 8.50,
       taxaManutencao: 10,
       taxaPerdas: 10,
-      margemLucro: 100
+      margemLucro: 100,
+      filamentos: [
+        { id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }
+      ]
     });
     showToast('Formulário resetado');
   };
@@ -137,8 +171,9 @@ Lucro Aplicado: ${formData.margemLucro}%
 PREÇO FINAL SUGERIDO: ${formatBRL(results.precoVenda)}
 ----------------------------------
 Detalhes do Projeto:
-- Peso estimado: ${formData.pesoPeca}g
-- Tempo de impressão: ${formData.tempoImpressao}h`;
+- Peso estimado: ${pesoTotal}g
+- Tempo de impressão: ${formData.tempoImpressao}h
+- Materiais: ${detalhesFilamentos}`;
     
     navigator.clipboard.writeText(orcamentoTexto)
       .then(() => showToast('Copiado com sucesso!'))
@@ -196,6 +231,10 @@ Detalhes do Projeto:
     ${darkMode 
       ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-blue-500/30' 
       : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm'}`;
+  const compactInputClass = `w-full px-3 py-1.5 text-sm rounded-lg border focus:ring-2 outline-none transition-all duration-200 
+    ${darkMode 
+      ? 'bg-slate-900 border-slate-700 text-white focus:border-blue-500 focus:ring-blue-500/30' 
+      : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm'}`;
   const cardClass = `rounded-xl p-6 ${darkMode ? 'bg-slate-900 border border-slate-800 shadow-xl' : 'bg-white border border-slate-100 shadow-md'}`;
   const sectionTitleClass = `text-lg font-semibold mb-4 flex items-center gap-2 pb-2 border-b ${darkMode ? 'text-slate-100 border-slate-800' : 'text-slate-800 border-slate-100'}`;
 
@@ -246,17 +285,17 @@ Detalhes do Projeto:
                   </div>
                 </div>
                 <div>
-                  <label className={labelClass}>Peso da Peça (gramas)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm font-bold">g</div>
-                    <input type="number" name="pesoPeca" value={formData.pesoPeca} onChange={handleChange} min="0" className={inputClass} />
-                  </div>
-                </div>
-                <div>
                   <label className={labelClass}>Tempo de Impressão (horas)</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-slate-400" /></div>
                     <input type="number" name="tempoImpressao" value={formData.tempoImpressao} onChange={handleChange} min="0" step="0.5" className={inputClass} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Peso Total (Soma Automática)</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-slate-400 text-sm font-bold">g</span></div>
+                    <div className={`${inputClass} flex items-center opacity-70 cursor-not-allowed ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>{pesoTotal}</div>
                   </div>
                 </div>
               </div>
@@ -265,22 +304,53 @@ Detalhes do Projeto:
             {/* Material & Energy */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className={cardClass}>
-                <h2 className={sectionTitleClass}><Package className="text-blue-500" size={20} /> Filamento</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className={labelClass}>Tipo/Cor (Opcional)</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Info size={16} className="text-slate-400" /></div>
-                      <input type="text" name="tipoFilamento" value={formData.tipoFilamento} onChange={handleChange} placeholder="Ex: PLA Preto" className={inputClass} />
+                <div className={`flex justify-between items-center mb-4 pb-2 border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                  <h2 className={`text-lg font-semibold flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                    <Package className="text-blue-500" size={20} /> Filamentos
+                  </h2>
+                  <button onClick={addFilamento} className="text-sm bg-blue-500/10 text-blue-500 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-blue-500/20 transition-colors font-medium">
+                    <Plus size={16} /> Adicionar
+                  </button>
+                </div>
+                <div 
+                  className={`space-y-4 max-h-[320px] overflow-y-auto pr-2 
+                    [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-lg [&::-webkit-scrollbar-thumb]:rounded-lg
+                    ${darkMode 
+                      ? '[&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-thumb]:bg-slate-600 hover:[&::-webkit-scrollbar-thumb]:bg-slate-500' 
+                      : '[&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400'
+                    }`}
+                  style={{ 
+                    scrollbarWidth: 'thin', 
+                    scrollbarColor: darkMode ? '#475569 transparent' : '#cbd5e1 transparent' 
+                  }}
+                >
+                  {formData.filamentos.map((filamento, index) => (
+                    <div key={filamento.id} className={`p-4 rounded-lg border relative ${darkMode ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
+                      {formData.filamentos.length > 1 && (
+                        <button onClick={() => removeFilamento(filamento.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 p-1.5 rounded-md transition-colors" title="Remover Filamento">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                          <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Tipo (PLA, ABS)</label>
+                          <input type="text" value={filamento.tipo} onChange={e => handleFilamentoChange(filamento.id, 'tipo', e.target.value)} placeholder="Ex: PLA" className={compactInputClass} />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Cor</label>
+                          <input type="text" value={filamento.cor} onChange={e => handleFilamentoChange(filamento.id, 'cor', e.target.value)} placeholder="Ex: Preto" className={compactInputClass} />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Peso Usado (g)</label>
+                          <input type="number" value={filamento.peso} onChange={e => handleFilamentoChange(filamento.id, 'peso', e.target.value)} min="0" className={compactInputClass} />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Valor Kg (R$)</label>
+                          <input type="number" value={filamento.valorKg} onChange={e => handleFilamentoChange(filamento.id, 'valorKg', e.target.value)} min="0" step="0.1" className={compactInputClass} />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Valor do Kg (R$)</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm font-bold">R$</div>
-                      <input type="number" name="valorKgFilamento" value={formData.valorKgFilamento} onChange={handleChange} min="0" step="0.1" className={inputClass} />
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
 
@@ -479,8 +549,8 @@ Detalhes do Projeto:
                   <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.nomePeca || 'Não informado'}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Material Sugerido:</td>
-                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.tipoFilamento || 'Padrão / Não informado'}</td>
+                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Material(is):</td>
+                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{detalhesFilamentos || 'Não informado'}</td>
                 </tr>
               </tbody>
             </table>

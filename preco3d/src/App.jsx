@@ -175,10 +175,10 @@ Detalhes do Projeto:
     nomeArquivo += '.pdf';
 
     const opt = {
-        margin:       0,
+        margin:       0.4,
         filename:     nomeArquivo,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
 
@@ -457,9 +457,9 @@ Detalhes do Projeto:
         </div>
       </main>
 
-      {/* Hidden PDF Template (Movido para fora da tela com opacidade 100% para capturar perfeitamente) */}
-      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
-        <div ref={pdfTemplateRef} style={{ background: 'white', color: '#0f172a', padding: '50px', fontFamily: 'sans-serif', width: '800px', minHeight: '800px' }}>
+      {/* Hidden PDF Template (Movido para fora da tela de forma segura para não cortar o conteúdo) */}
+      <div style={{ position: 'absolute', top: '0', left: '-9999px', zIndex: -9999 }}>
+        <div ref={pdfTemplateRef} style={{ background: 'white', color: '#0f172a', padding: '40px 50px', fontFamily: 'sans-serif', width: '800px' }}>
           
           <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '40px', textAlign: 'center' }}>
             <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px' }}>Orçamento</h1>

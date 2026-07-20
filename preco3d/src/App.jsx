@@ -457,8 +457,8 @@ Detalhes do Projeto:
         </div>
       </main>
 
-      {/* Hidden PDF Template (Mantido na DOM com opacidade 0 para o html2canvas capturar perfeitamente) */}
-      <div style={{ position: 'absolute', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
+      {/* Hidden PDF Template (Movido para fora da tela com opacidade 100% para capturar perfeitamente) */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
         <div ref={pdfTemplateRef} style={{ background: 'white', color: '#0f172a', padding: '50px', fontFamily: 'sans-serif', width: '800px', minHeight: '800px' }}>
           
           <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '40px', textAlign: 'center' }}>

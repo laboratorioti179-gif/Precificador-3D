@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2, Save, Mail, Lock, LogOut, ArrowRight, LockKeyhole, MessageCircle, RefreshCw, Camera, LayoutGrid } from 'lucide-react';
+import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2, Save, Mail, Lock, LogOut, ArrowRight, LockKeyhole, MessageCircle, RefreshCw, Camera, LayoutGrid, X, ExternalLink, FileText } from 'lucide-react';
 
 // Credenciais do Supabase
 const supabaseUrl = 'https://yymcybqwtuvymzprudhq.supabase.co';
@@ -94,6 +94,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
   const [savedProducts, setSavedProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const [results, setResults] = useState({
     custoFilamento: 0,
@@ -226,6 +227,33 @@ export default function App() {
       filamentos: [{ id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }]
     });
     showToast('Formulário resetado');
+  };
+
+  const handleLoadIntoCalculator = (produto) => {
+    if (produto?.dados_formulario) {
+      const df = produto.dados_formulario;
+      setFormData({
+        nomePeca: df.nomePeca || '',
+        nomeCliente: df.nomeCliente || df.cliente || '',
+        tempoImpressao: df.tempoImpressao ?? 18,
+        potenciaImpressora: df.potenciaImpressora ?? 120,
+        valorKwh: df.valorKwh ?? 0.95,
+        depreciacaoHora: df.depreciacaoHora ?? 0.35,
+        tempoMaoObra: df.tempoMaoObra ?? 40,
+        valorHoraMaoObra: df.valorHoraMaoObra ?? 40,
+        valorMateriaisExtras: df.valorMateriaisExtras ?? 8.50,
+        taxaManutencao: df.taxaManutencao ?? 10,
+        taxaPerdas: df.taxaPerdas ?? 10,
+        margemLucro: df.margemLucro ?? 100,
+        foto: df.foto || null,
+        filamentos: df.filamentos && df.filamentos.length > 0 
+          ? df.filamentos 
+          : [{ id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }]
+      });
+      setSelectedProduct(null);
+      setActiveTab('calculator');
+      showToast('Dados carregados na calculadora!');
+    }
   };
 
   const handleImageUpload = (e) => {
@@ -957,7 +985,11 @@ export default function App() {
                   const tempoH = produto.dados_formulario?.tempoImpressao;
                   
                   return (
-                    <div key={produto.id} className={`rounded-xl overflow-hidden border group transition-all duration-300 hover:shadow-xl ${darkMode ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                    <div 
+                      key={produto.id} 
+                      onClick={() => setSelectedProduct(produto)} 
+                      className={`rounded-xl overflow-hidden border group transition-all duration-300 hover:shadow-xl cursor-pointer ${darkMode ? 'bg-slate-900 border-slate-800 hover:border-blue-500/50' : 'bg-white border-slate-200 hover:border-blue-400'}`}
+                    >
                       <div className={`h-48 w-full relative flex items-center justify-center bg-slate-100 dark:bg-slate-800 ${!foto && 'border-b border-slate-200 dark:border-slate-800'}`}>
                         {foto ? (
                           <img src={foto} alt={produto.peca} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -967,9 +999,16 @@ export default function App() {
                         <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-xs font-semibold px-2 py-1 rounded">
                           {dataCriacao}
                         </div>
-                        <button onClick={() => handleDeleteProduct(produto.id)} className="absolute top-3 right-3 bg-red-500/90 hover:bg-red-500 text-white p-2 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity transform hover:scale-105" title="Excluir">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteProduct(produto.id); }} 
+                          className="absolute top-3 right-3 bg-red-500/90 hover:bg-red-500 text-white p-2 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity transform hover:scale-105 z-10" 
+                          title="Excluir"
+                        >
                           <Trash2 size={16} />
                         </button>
+                        <div className="absolute bottom-2 right-2 bg-blue-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                          <FileText size={10} /> Ver Detalhes
+                        </div>
                       </div>
 
                       <div className="p-5">
@@ -1004,6 +1043,213 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* MODAL DE DETALHES COMPLETO DO PRODUTO */}
+      {selectedProduct && (() => {
+        const df = selectedProduct.dados_formulario || {};
+        const filamentosList = df.filamentos || [];
+        const tempoH = Number(df.tempoImpressao) || 0;
+        const potenciaW = Number(df.potenciaImpressora) || 0;
+        const valorKwh = Number(df.valorKwh) || 0;
+        const consumoKwh = (potenciaW * tempoH) / 1000;
+        const custoEnergia = consumoKwh * valorKwh;
+        
+        const custoFilamentos = filamentosList.reduce((acc, f) => {
+          return acc + (((Number(f.peso) || 0) / 1000) * (Number(f.valorKg) || 0));
+        }, 0);
+        
+        const tempoMaoObraMin = Number(df.tempoMaoObra) || 0;
+        const valorHoraMaoObra = Number(df.valorHoraMaoObra) || 0;
+        const custoMaoObra = (tempoMaoObraMin / 60) * valorHoraMaoObra;
+        
+        const materiaisExtras = Number(df.valorMateriaisExtras) || 0;
+        const depreciacaoHora = Number(df.depreciacaoHora) || 0;
+        const custoDepreciacao = tempoH * depreciacaoHora;
+        
+        const subtotal = custoFilamentos + custoEnergia + custoMaoObra + materiaisExtras + custoDepreciacao;
+        const taxaManutencao = Number(df.taxaManutencao) || 0;
+        const custoManutencao = subtotal * (taxaManutencao / 100);
+        const taxaPerdas = Number(df.taxaPerdas) || 0;
+        const custoPerdas = subtotal * (taxaPerdas / 100);
+        const custoTotalReal = subtotal + custoManutencao + custoPerdas;
+        
+        const margemLucro = Number(df.margemLucro) || 0;
+        const precoVenda = custoTotalReal * (1 + (margemLucro / 100));
+        const lucroLiquido = precoVenda - custoTotalReal;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+            <div className={`w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden my-8 border flex flex-col max-h-[90vh] ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}>
+              
+              {/* Header do Modal */}
+              <div className={`p-5 border-b flex items-center justify-between sticky top-0 z-10 backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-600/10 text-blue-500 rounded-xl">
+                    <Box size={24} />
+                  </div>
+                  <div>
+                    <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{selectedProduct.peca || 'Produto sem nome'}</h2>
+                    <p className="text-xs opacity-70">Cliente: <span className="font-semibold">{selectedProduct.cliente || 'Não informado'}</span> • Salvo em {new Date(selectedProduct.criado_em).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedProduct(null)} className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Corpo do Modal */}
+              <div className="p-6 overflow-y-auto space-y-6">
+                
+                {/* Foto + Resumo principal */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                  {df.foto ? (
+                    <div className="h-44 rounded-xl overflow-hidden border border-slate-700/50 relative">
+                      <img src={df.foto} alt={selectedProduct.peca} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className={`h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center ${darkMode ? 'border-slate-800 bg-slate-800/30 text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                      <Box size={40} className="opacity-40 mb-1" />
+                      <span className="text-xs font-medium">Sem imagem</span>
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className={`p-4 rounded-xl border text-center ${darkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                      <span className="text-xs opacity-70 block mb-1">Custo Real</span>
+                      <span className="text-lg font-bold">{formatBRL(selectedProduct.custo_real || custoTotalReal)}</span>
+                    </div>
+
+                    <div className={`p-4 rounded-xl border text-center ${darkMode ? 'bg-blue-900/30 border-blue-800 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+                      <span className="text-xs font-semibold block mb-1">Preço Venda</span>
+                      <span className="text-xl font-black">{formatBRL(selectedProduct.preco_venda || precoVenda)}</span>
+                    </div>
+
+                    <div className={`p-4 rounded-xl border text-center ${darkMode ? 'bg-emerald-900/30 border-emerald-800 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                      <span className="text-xs font-semibold block mb-1">Lucro Líquido</span>
+                      <span className="text-lg font-bold">{formatBRL(selectedProduct.lucro_liquido || lucroLiquido)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Detalhes dos Materiais (Filamentos) */}
+                <div className={`p-4 rounded-xl border ${darkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50/70 border-slate-200'}`}>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-blue-500">
+                    <Package size={16} /> Filamentos Utilizados ({filamentosList.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {filamentosList.map((f, idx) => {
+                      const peso = Number(f.peso) || 0;
+                      const valKg = Number(f.valorKg) || 0;
+                      const cst = (peso / 1000) * valKg;
+                      return (
+                        <div key={f.id || idx} className={`flex items-center justify-between p-2.5 rounded-lg text-xs border ${darkMode ? 'bg-slate-900/80 border-slate-700/60' : 'bg-white border-slate-200'}`}>
+                          <div>
+                            <span className="font-semibold">{f.tipo || 'Filamento'} {f.cor ? `(${f.cor})` : ''}</span>
+                            <span className="opacity-60 ml-2">{peso}g @ {formatBRL(valKg)}/kg</span>
+                          </div>
+                          <span className="font-bold">{formatBRL(cst)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Grid de Parâmetros de Cálculo */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  
+                  {/* Energia e Impressora */}
+                  <div className={`p-4 rounded-xl border ${darkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50/70 border-slate-200'}`}>
+                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-blue-500">
+                      <Zap size={16} /> Energia & Máquina
+                    </h3>
+                    <ul className="space-y-2 text-xs opacity-90">
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Tempo Impressão:</span> <span className="font-semibold">{tempoH} horas</span>
+                      </li>
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Potência Máquina:</span> <span className="font-semibold">{potenciaW} W</span>
+                      </li>
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Consumo de Energia:</span> <span className="font-semibold">{consumoKwh.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} kWh</span>
+                      </li>
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Valor do kWh:</span> <span className="font-semibold">{formatBRL(valorKwh)}</span>
+                      </li>
+                      <li className="flex justify-between pt-1">
+                        <span>Custo Energia:</span> <span className="font-bold text-blue-400">{formatBRL(custoEnergia)}</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Mão de obra e Extras */}
+                  <div className={`p-4 rounded-xl border ${darkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50/70 border-slate-200'}`}>
+                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-blue-500">
+                      <Wrench size={16} /> Mão de Obra & Extras
+                    </h3>
+                    <ul className="space-y-2 text-xs opacity-90">
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Tempo de Pós-proc.:</span> <span className="font-semibold">{tempoMaoObraMin} min</span>
+                      </li>
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Valor Hora Mão de Obra:</span> <span className="font-semibold">{formatBRL(valorHoraMaoObra)}</span>
+                      </li>
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Custo Mão de Obra:</span> <span className="font-bold text-blue-400">{formatBRL(custoMaoObra)}</span>
+                      </li>
+                      <li className="flex justify-between border-b border-dashed pb-1.5 border-slate-700/30">
+                        <span>Materiais Extras:</span> <span className="font-semibold">{formatBRL(materiaisExtras)}</span>
+                      </li>
+                      <li className="flex justify-between pt-1">
+                        <span>Depreciação Máq. ({formatBRL(depreciacaoHora)}/h):</span> <span className="font-semibold">{formatBRL(custoDepreciacao)}</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                </div>
+
+                {/* Taxas & Margens */}
+                <div className={`p-4 rounded-xl border ${darkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50/70 border-slate-200'}`}>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-blue-500">
+                    <Calculator size={16} /> Taxas, Perdas e Margem de Lucro
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className={`p-2.5 rounded-lg border ${darkMode ? 'bg-slate-900/80 border-slate-700/60' : 'bg-white border-slate-200'}`}>
+                      <span className="opacity-70 block mb-1">Manutenção ({taxaManutencao}%)</span>
+                      <span className="font-bold text-orange-400">{formatBRL(custoManutencao)}</span>
+                    </div>
+                    <div className={`p-2.5 rounded-lg border ${darkMode ? 'bg-slate-900/80 border-slate-700/60' : 'bg-white border-slate-200'}`}>
+                      <span className="opacity-70 block mb-1">Perdas ({taxaPerdas}%)</span>
+                      <span className="font-bold text-red-400">{formatBRL(custoPerdas)}</span>
+                    </div>
+                    <div className={`p-2.5 rounded-lg border ${darkMode ? 'bg-blue-900/20 border-blue-800/50' : 'bg-blue-50 border-blue-200'}`}>
+                      <span className="text-blue-500 font-semibold block mb-1">Margem de Lucro</span>
+                      <span className="font-bold text-blue-500">{margemLucro}%</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Footer do Modal com Botões de Ação */}
+              <div className={`p-4 border-t flex flex-col sm:flex-row gap-3 justify-end sticky bottom-0 z-10 backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
+                <button 
+                  onClick={() => handleLoadIntoCalculator(selectedProduct)} 
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20"
+                >
+                  <ExternalLink size={16} /> Carregar na Calculadora
+                </button>
+                <button 
+                  onClick={() => setSelectedProduct(null)} 
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors border ${darkMode ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-700'}`}
+                >
+                  Fechar
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Template PDF Oculto (Fora da tela para não cortar) */}
       <div 

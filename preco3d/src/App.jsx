@@ -232,16 +232,27 @@ export default function App() {
 
   const checkSubscription = async (userEmail, token) => {
     setSubStatus('loading');
+    
+    if (!userEmail) {
+      setSubStatus('inactive');
+      return;
+    }
+
     try {
-      const response = await fetch(`${supabaseUrl}/rest/v1/assinaturas?email=eq.${encodeURIComponent(userEmail)}&select=data_validade`, {
+      // Correção: Usando a supabaseKey no Authorization e removendo espaços vazios do email
+      const response = await fetch(`${supabaseUrl}/rest/v1/assinaturas?email=eq.${encodeURIComponent(userEmail.trim())}&select=data_validade`, {
         method: 'GET',
         headers: {
           'apikey': supabaseKey,
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      if (!response.ok) throw new Error('Falha ao verificar assinatura');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || errData.hint || `Erro de permissão no Supabase (${response.status})`);
+      }
       
       const data = await response.json();
       
@@ -251,15 +262,19 @@ export default function App() {
         
         if (validade > new Date()) {
           setSubStatus('active');
+          showToast('Acesso validado!');
         } else {
           setSubStatus('expired');
+          showToast(`Expirada em: ${validade.toLocaleDateString('pt-BR')}`);
         }
       } else {
         setSubStatus('inactive');
+        showToast('Pagamento não localizado no banco.');
       }
     } catch (error) {
-      console.error(error);
-      setSubStatus('inactive'); // Em caso de erro, bloqueia por segurança
+      console.error("Erro na verificação de assinatura:", error);
+      setSubStatus('inactive'); 
+      showToast(error.message);
     }
   };
 
@@ -451,7 +466,7 @@ export default function App() {
   }
 
   if (subStatus !== 'active') {
-    const zapText = encodeURIComponent("Eu quero precificar minhas impressões com o PrintPrice 3D");
+    const zapText = encodeURIComponent("Eu quero precificar minhas impressões com o PrintPrice 3D por 19,90");
     const whatsappLink = `https://wa.me/5511988241182?text=${zapText}`;
 
     return (
@@ -469,7 +484,7 @@ export default function App() {
           
           <p className="mb-6 opacity-80 leading-relaxed">
             {subStatus === 'expired' 
-              ? 'O período da sua assinatura terminou. Para continuar precificando suas peças com precisão, renove seu acesso.' 
+              ? <>O período da sua assinatura terminou no dia <strong className="text-red-500">{subExpirationDate ? subExpirationDate.toLocaleDateString('pt-BR') : ''}</strong>. Para continuar precificando suas peças com precisão, renove seu acesso.</>
               : 'Sua conta ainda não possui uma assinatura ativa. Para começar a lucrar mais com suas impressões 3D, libere seu acesso agora!'}
           </p>
 

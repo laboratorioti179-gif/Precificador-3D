@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2 } from 'lucide-react';
+import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2, Save, Mail, Lock, LogOut, ArrowRight, LockKeyhole, MessageCircle, RefreshCw } from 'lucide-react';
+
+// Credenciais do Supabase
+const supabaseUrl = 'https://yymcybqwtuvymzprudhq.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5bWN5YnF3dHV2eW16cHJ1ZGhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzY5MjQsImV4cCI6MjA5NzU1MjkyNH0.truQM_HQN-wLDX8yN2WJu6pAobNuqNGnh8-XQgsOm3Q';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Add this new useEffect block right here
   useEffect(() => {
-    // 1. Set the Title
     document.title = "PrintPrice 3D";
 
-    // 2. Add Meta Tags for Mobile
     const metaThemeColor = document.createElement('meta');
     metaThemeColor.name = "theme-color";
-    metaThemeColor.content = darkMode ? "#020617" : "#f8fafc"; // Adjust based on dark mode
+    metaThemeColor.content = darkMode ? "#020617" : "#f8fafc";
     document.head.appendChild(metaThemeColor);
 
     const metaAppleStatus = document.createElement('meta');
@@ -26,11 +27,8 @@ export default function App() {
     metaAppleCapable.content = "yes";
     document.head.appendChild(metaAppleCapable);
     
-    // 3. Add Icon Links
-    // You will need to replace these placeholder URLs with actual URLs to your images.
-    // For a real app, you should host these images online.
-    const iconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png"; // Placeholder icon (Box)
-    const appleIconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png"; // Placeholder for iOS
+    const iconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png";
+    const appleIconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png";
 
     const linkFavicon = document.createElement('link');
     linkFavicon.rel = "icon";
@@ -43,7 +41,6 @@ export default function App() {
     linkAppleTouch.href = appleIconUrl;
     document.head.appendChild(linkAppleTouch);
 
-    // 4. (Optional) Create a dynamic Manifest
     const manifest = {
       "name": "PrintPrice 3D",
       "short_name": "PrintPrice",
@@ -52,16 +49,8 @@ export default function App() {
       "background_color": "#020617",
       "theme_color": "#2563eb",
       "icons": [
-        {
-          "src": iconUrl,
-          "sizes": "192x192",
-          "type": "image/png"
-        },
-        {
-          "src": iconUrl,
-          "sizes": "512x512",
-          "type": "image/png"
-        }
+        { "src": iconUrl, "sizes": "192x192", "type": "image/png" },
+        { "src": iconUrl, "sizes": "512x512", "type": "image/png" }
       ]
     };
     
@@ -72,7 +61,6 @@ export default function App() {
     linkManifest.href = manifestUrl;
     document.head.appendChild(linkManifest);
 
-    // Cleanup function when component unmounts (optional but good practice)
     return () => {
        document.head.removeChild(metaThemeColor);
        document.head.removeChild(metaAppleStatus);
@@ -82,9 +70,8 @@ export default function App() {
        document.head.removeChild(linkManifest);
        URL.revokeObjectURL(manifestUrl);
     };
-  }, []); // Run once on mount
+  }, []);
 
-  // Data State
   const [formData, setFormData] = useState({
     nomePeca: '',
     nomeCliente: '',
@@ -103,7 +90,6 @@ export default function App() {
     ]
   });
 
-  // Results State
   const [results, setResults] = useState({
     custoFilamento: 0,
     custoEnergia: 0,
@@ -118,9 +104,22 @@ export default function App() {
     lucroLiquido: 0
   });
 
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [user, setUser] = useState(null);
+  const [sessionToken, setSessionToken] = useState(null);
+  const [authMode, setAuthMode] = useState('login'); 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  
+  // Status da Assinatura: 'loading', 'active', 'inactive', 'expired'
+  const [subStatus, setSubStatus] = useState('loading');
+  const [subExpirationDate, setSubExpirationDate] = useState(null);
+
   const pdfTemplateRef = useRef(null);
 
-  // Derived State for UI and Copy
+  // Derivações do filamento
   const pesoTotal = formData.filamentos.reduce((acc, f) => acc + (Number(f.peso) || 0), 0);
   const detalhesFilamentos = formData.filamentos.map(f => {
     const partes = [];
@@ -130,7 +129,6 @@ export default function App() {
     return `${nome} (${f.peso}g)`;
   }).join(', ');
 
-  // Auto-calculate whenever formData changes
   useEffect(() => {
     const custoFilamento = formData.filamentos.reduce((acc, f) => {
       const pesoKg = (Number(f.peso) || 0) / 1000;
@@ -182,7 +180,6 @@ export default function App() {
     });
   }, [formData]);
 
-  // Update theme-color meta tag when darkMode changes
   useEffect(() => {
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
@@ -206,7 +203,7 @@ export default function App() {
 
   const removeFilamento = (id) => {
     setFormData(prev => {
-      if (prev.filamentos.length <= 1) return prev; // Mantém pelo menos um
+      if (prev.filamentos.length <= 1) return prev;
       return { ...prev, filamentos: prev.filamentos.filter(f => f.id !== id) };
     });
   };
@@ -218,48 +215,109 @@ export default function App() {
 
   const handleReset = () => {
     setFormData({
-      nomePeca: '',
-      nomeCliente: '',
-      tempoImpressao: 18,
-      potenciaImpressora: 120,
-      valorKwh: 0.95,
-      depreciacaoHora: 0.35,
-      tempoMaoObra: 40,
-      valorHoraMaoObra: 40,
-      valorMateriaisExtras: 8.50,
-      taxaManutencao: 10,
-      taxaPerdas: 10,
-      margemLucro: 100,
-      filamentos: [
-        { id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }
-      ]
+      nomePeca: '', nomeCliente: '', tempoImpressao: 18, potenciaImpressora: 120, valorKwh: 0.95,
+      depreciacaoHora: 0.35, tempoMaoObra: 40, valorHoraMaoObra: 40, valorMateriaisExtras: 8.50,
+      taxaManutencao: 10, taxaPerdas: 10, margemLucro: 100,
+      filamentos: [{ id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }]
     });
     showToast('Formulário resetado');
   };
 
-  const formatBRL = (value) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
+  const formatBRL = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3000);
   };
 
+  const checkSubscription = async (userEmail, token) => {
+    setSubStatus('loading');
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/assinaturas?email=eq.${encodeURIComponent(userEmail)}&select=data_validade`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Falha ao verificar assinatura');
+      
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        const validade = new Date(data[0].data_validade);
+        setSubExpirationDate(validade);
+        
+        if (validade > new Date()) {
+          setSubStatus('active');
+        } else {
+          setSubStatus('expired');
+        }
+      } else {
+        setSubStatus('inactive');
+      }
+    } catch (error) {
+      console.error(error);
+      setSubStatus('inactive'); // Em caso de erro, bloqueia por segurança
+    }
+  };
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    if (!email || !password) {
+      showToast('Preencha e-mail e senha'); return;
+    }
+    setAuthLoading(true);
+    try {
+      const endpoint = authMode === 'login' ? '/auth/v1/token?grant_type=password' : '/auth/v1/signup';
+      const response = await fetch(`${supabaseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error_description || data.msg || 'Erro na autenticação');
+
+      if (authMode === 'register' && data.user && !data.session && !data.access_token) {
+         showToast('Conta criada! Faça login agora.');
+         setAuthMode('login');
+      } else if (data.session || data.access_token) {
+         const loggedUser = data.user || data.session?.user;
+         const token = data.access_token || data.session?.access_token;
+         
+         setUser(loggedUser);
+         setSessionToken(token);
+         showToast('Login realizado com sucesso!');
+         
+         // Após o login, verifica se ele pagou
+         checkSubscription(loggedUser?.email, token);
+      }
+    } catch (error) {
+      console.error(error);
+      if (error.message.includes('Invalid login credentials')) showToast('E-mail ou senha incorretos.');
+      else if (error.message.includes('already registered')) showToast('Este e-mail já está cadastrado.');
+      else showToast(error.message || 'Erro ao autenticar');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setSessionToken(null);
+    setSubStatus('loading');
+    setEmail('');
+    setPassword('');
+    showToast('Você saiu do sistema');
+  };
+
   const handleCopy = () => {
     const nome = formData.nomePeca || 'Projeto 3D';
     const cliente = formData.nomeCliente ? ` (Cliente: ${formData.nomeCliente})` : '';
-    const orcamentoTexto = `Orçamento: ${nome}${cliente}
-----------------------------------
-Custo Base: ${formatBRL(results.custoTotalReal)}
-Lucro Aplicado: ${formData.margemLucro}%
-
-PREÇO FINAL SUGERIDO: ${formatBRL(results.precoVenda)}
-----------------------------------
-Detalhes do Projeto:
-- Peso estimado: ${pesoTotal}g
-- Tempo de impressão: ${formData.tempoImpressao}h
-- Materiais: ${detalhesFilamentos}`;
+    const orcamentoTexto = `Orçamento: ${nome}${cliente}\n----------------------------------\nCusto Base: ${formatBRL(results.custoTotalReal)}\nLucro Aplicado: ${formData.margemLucro}%\n\nPREÇO FINAL SUGERIDO: ${formatBRL(results.precoVenda)}\n----------------------------------\nDetalhes do Projeto:\n- Peso estimado: ${pesoTotal}g\n- Tempo de impressão: ${formData.tempoImpressao}h\n- Materiais: ${detalhesFilamentos}`;
     
     navigator.clipboard.writeText(orcamentoTexto)
       .then(() => showToast('Copiado com sucesso!'))
@@ -268,14 +326,9 @@ Detalhes do Projeto:
 
   const handlePdf = () => {
     showToast('Gerando PDF...');
-    
-    // Atualiza a data e hora do PDF exatamente no momento do clique
     const dateElement = document.getElementById('pdf-date-text');
-    if (dateElement) {
-      dateElement.innerText = `Data de emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`;
-    }
+    if (dateElement) dateElement.innerText = `Data de emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`;
 
-    // Dynamically load html2pdf if not present
     if (typeof window.html2pdf === 'undefined') {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
@@ -288,41 +341,155 @@ Detalhes do Projeto:
 
   const generatePdfAction = () => {
     const element = pdfTemplateRef.current;
-    
     let nomeArquivo = 'Orcamento_Impressao_3D';
-    if(formData.nomeCliente) {
-        nomeArquivo += `_${formData.nomeCliente.replace(/\s+/g, '_')}`;
-    }
+    if(formData.nomeCliente) nomeArquivo += `_${formData.nomeCliente.replace(/\s+/g, '_')}`;
     nomeArquivo += '.pdf';
 
-    const opt = {
-        margin:       0.4,
-        filename:     nomeArquivo,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-    };
-
-    window.html2pdf().set(opt).from(element).save().then(() => {
-        showToast("PDF gerado!");
-    }).catch(err => {
-        console.error(err);
-        showToast("Erro ao gerar PDF.");
-    });
+    const opt = { margin: 0.4, filename: nomeArquivo, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
+    window.html2pdf().set(opt).from(element).save().then(() => showToast("PDF gerado!")).catch(() => showToast("Erro ao gerar PDF."));
   };
 
-  // Setup generic classes for inputs to keep JSX clean
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/orcamentos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${sessionToken}`, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          cliente: formData.nomeCliente || 'Não informado', peca: formData.nomePeca || 'Projeto 3D',
+          preco_venda: results.precoVenda, custo_real: results.custoTotalReal, lucro_liquido: results.lucroLiquido,
+          dados_formulario: { ...formData, usuario_email: user?.email }
+        })
+      });
+      if (!response.ok) throw new Error('Erro na requisição: ' + response.statusText);
+      showToast('Orçamento salvo no Supabase!');
+    } catch (error) {
+      console.error(error);
+      showToast('Erro ao salvar. Verifique se a tabela existe.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Setup generic classes for UI
   const labelClass = `block text-sm font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`;
   const inputClass = `w-full pl-9 pr-3 py-2 rounded-lg border focus:ring-2 outline-none transition-all duration-200 
-    ${darkMode 
-      ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-blue-500/30' 
-      : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm'}`;
+    ${darkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-blue-500/30' : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm'}`;
   const compactInputClass = `w-full px-3 py-1.5 text-sm rounded-lg border focus:ring-2 outline-none transition-all duration-200 
-    ${darkMode 
-      ? 'bg-slate-900 border-slate-700 text-white focus:border-blue-500 focus:ring-blue-500/30' 
-      : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm'}`;
+    ${darkMode ? 'bg-slate-900 border-slate-700 text-white focus:border-blue-500 focus:ring-blue-500/30' : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm'}`;
   const cardClass = `rounded-xl p-6 ${darkMode ? 'bg-slate-900 border border-slate-800 shadow-xl' : 'bg-white border border-slate-100 shadow-md'}`;
   const sectionTitleClass = `text-lg font-semibold mb-4 flex items-center gap-2 pb-2 border-b ${darkMode ? 'text-slate-100 border-slate-800' : 'text-slate-800 border-slate-100'}`;
+
+  if (!user) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
+        <div className="absolute top-4 right-4">
+          <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full transition-colors ${darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}>
+            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+        </div>
+
+        <div className={`w-full max-w-md p-8 rounded-2xl shadow-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <div className="flex flex-col items-center mb-8">
+            <div className="bg-blue-600 text-white p-4 rounded-2xl mb-5 shadow-lg shadow-blue-500/30">
+              <Box size={36} />
+            </div>
+            <h1 className={`text-3xl font-bold tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>PrintPrice 3D</h1>
+            <p className="text-sm opacity-70 mt-2">
+              {authMode === 'login' ? 'Faça login para acessar o sistema' : 'Crie sua conta para começar'}
+            </p>
+          </div>
+
+          <form onSubmit={handleAuth} className="space-y-5">
+            <div>
+              <label className={labelClass}>E-mail</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail size={18} className="text-slate-400" />
+                </div>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" className={inputClass} required />
+              </div>
+            </div>
+            
+            <div>
+              <label className={labelClass}>Senha</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock size={18} className="text-slate-400" />
+                </div>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className={inputClass} required minLength={6} />
+              </div>
+            </div>
+
+            <button type="submit" disabled={authLoading} className={`w-full py-3 mt-4 rounded-xl flex justify-center items-center gap-2 font-semibold text-white transition-all shadow-lg ${authLoading ? 'bg-blue-500/70 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-500 hover:shadow-blue-500/30'}`}>
+              {authLoading ? 'Aguarde...' : (authMode === 'login' ? 'Entrar no Sistema' : 'Criar Minha Conta')}
+              {!authLoading && <ArrowRight size={18} />}
+            </button>
+          </form>
+
+          <div className="mt-8 text-center border-t pt-6 border-slate-200 dark:border-slate-800">
+            <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="text-sm text-blue-500 hover:text-blue-400 transition-colors font-medium">
+              {authMode === 'login' ? 'Não tem uma conta? Cadastre-se' : 'Já tem uma conta? Fazer login'}
+            </button>
+          </div>
+        </div>
+
+        <div className={`fixed bottom-5 right-5 flex items-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-xl transition-all duration-300 transform z-50 ${toastMessage ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
+          <CheckCircle size={20} />
+          <span className="font-medium">{toastMessage}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (subStatus === 'loading') {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        <div className="animate-spin text-blue-500"><RefreshCw size={40} /></div>
+      </div>
+    );
+  }
+
+  if (subStatus !== 'active') {
+    const zapText = encodeURIComponent("Eu quero precificar minhas impressões com o PrintPrice 3D");
+    const whatsappLink = `https://wa.me/5511988241182?text=${zapText}`;
+
+    return (
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
+        <div className={`w-full max-w-md p-8 rounded-2xl shadow-2xl border text-center ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <div className="flex justify-center mb-6">
+            <div className={`p-5 rounded-full ${darkMode ? 'bg-red-500/10 text-red-500' : 'bg-red-100 text-red-600'}`}>
+              <LockKeyhole size={48} />
+            </div>
+          </div>
+          
+          <h1 className={`text-2xl font-bold mb-3 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+            {subStatus === 'expired' ? 'Assinatura Expirada' : 'Acesso Restrito'}
+          </h1>
+          
+          <p className="mb-6 opacity-80 leading-relaxed">
+            {subStatus === 'expired' 
+              ? 'O período da sua assinatura terminou. Para continuar precificando suas peças com precisão, renove seu acesso.' 
+              : 'Sua conta ainda não possui uma assinatura ativa. Para começar a lucrar mais com suas impressões 3D, libere seu acesso agora!'}
+          </p>
+
+          <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full py-3.5 mb-4 rounded-xl flex justify-center items-center gap-2 font-bold text-white transition-all shadow-lg bg-[#25D366] hover:bg-[#1ebd5a] hover:shadow-green-500/30">
+            <MessageCircle size={22} />
+            Chamar no WhatsApp
+          </a>
+
+          <div className="flex flex-col gap-3 mt-6 border-t pt-6 border-slate-200 dark:border-slate-800">
+            <button onClick={() => checkSubscription(user.email, sessionToken)} className="text-sm text-blue-500 hover:text-blue-400 font-medium flex items-center justify-center gap-1.5">
+              <RefreshCw size={16} /> Já paguei / Atualizar Acesso
+            </button>
+            <button onClick={handleLogout} className="text-sm text-slate-500 hover:text-red-500 font-medium flex items-center justify-center gap-1.5 mt-2">
+              <LogOut size={16} /> Sair da conta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
@@ -334,25 +501,28 @@ Detalhes do Projeto:
             <div className="bg-blue-600 text-white p-2 rounded-lg"><Box size={20} /></div>
             <span className={`font-bold text-xl tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>PrintPrice 3D</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mr-2 border ${darkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+              <CheckCircle size={14} /> Assinatura Ativa
+            </div>
             <button onClick={handleReset} className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-blue-500`}>
-              <RotateCcw size={16} /> Limpar
+              <RotateCcw size={16} /> <span className="hidden sm:inline">Limpar</span>
             </button>
             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full transition-colors ${darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1"></div>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm font-medium transition-colors text-red-500 hover:text-red-400 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg">
+              <LogOut size={16} /> <span className="hidden sm:inline">Sair</span>
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           
-          {/* Form Area */}
           <div className="w-full lg:w-2/3 space-y-6">
-            
-            {/* Project Data */}
             <div className={cardClass}>
               <h2 className={sectionTitleClass}><Info className="text-blue-500" size={20} /> Dados do Projeto</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -387,7 +557,6 @@ Detalhes do Projeto:
               </div>
             </div>
 
-            {/* Material & Energy */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className={cardClass}>
                 <div className={`flex justify-between items-center mb-4 pb-2 border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
@@ -399,18 +568,10 @@ Detalhes do Projeto:
                   </button>
                 </div>
                 <div 
-                  className={`space-y-4 max-h-[320px] overflow-y-auto pr-2 
-                    [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-lg [&::-webkit-scrollbar-thumb]:rounded-lg
-                    ${darkMode 
-                      ? '[&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-thumb]:bg-slate-600 hover:[&::-webkit-scrollbar-thumb]:bg-slate-500' 
-                      : '[&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400'
-                    }`}
-                  style={{ 
-                    scrollbarWidth: 'thin', 
-                    scrollbarColor: darkMode ? '#475569 transparent' : '#cbd5e1 transparent' 
-                  }}
+                  className={`space-y-4 max-h-[320px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:rounded-lg [&::-webkit-scrollbar-thumb]:rounded-lg ${darkMode ? '[&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-thumb]:bg-slate-600 hover:[&::-webkit-scrollbar-thumb]:bg-slate-500' : '[&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400'}`}
+                  style={{ scrollbarWidth: 'thin', scrollbarColor: darkMode ? '#475569 transparent' : '#cbd5e1 transparent' }}
                 >
-                  {formData.filamentos.map((filamento, index) => (
+                  {formData.filamentos.map((filamento) => (
                     <div key={filamento.id} className={`p-4 rounded-lg border relative ${darkMode ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
                       {formData.filamentos.length > 1 && (
                         <button onClick={() => removeFilamento(filamento.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 p-1.5 rounded-md transition-colors" title="Remover Filamento">
@@ -427,7 +588,7 @@ Detalhes do Projeto:
                           <input type="text" value={filamento.cor} onChange={e => handleFilamentoChange(filamento.id, 'cor', e.target.value)} placeholder="Ex: Preto" className={compactInputClass} />
                         </div>
                         <div>
-                          <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Peso Usado (g)</label>
+                          <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Peso (g)</label>
                           <input type="number" value={filamento.peso} onChange={e => handleFilamentoChange(filamento.id, 'peso', e.target.value)} min="0" className={compactInputClass} />
                         </div>
                         <div>
@@ -534,7 +695,6 @@ Detalhes do Projeto:
 
           </div>
 
-          {/* Results Area */}
           <div className="w-full lg:w-1/3">
             <div className={`sticky top-24 rounded-xl border-t-4 border-t-blue-500 overflow-hidden shadow-2xl relative p-6 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
               <div className="absolute -right-8 -top-8 text-blue-500/10 pointer-events-none transform rotate-12">
@@ -598,14 +758,19 @@ Detalhes do Projeto:
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3 mt-6">
-                  <button onClick={handleCopy} className={`w-full py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors border
-                    ${darkMode ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'}`}>
-                    <Copy size={18} /> Copiar
+                <div className="mt-6">
+                  <button onClick={handleSave} disabled={isSaving} className={`w-full py-2.5 mb-3 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors ${darkMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                    <Save size={18} /> {isSaving ? 'Salvando...' : 'Salvar no Banco'}
                   </button>
-                  <button onClick={handlePdf} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors">
-                    <Download size={18} /> Gerar PDF
-                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={handleCopy} className={`w-full py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors border
+                      ${darkMode ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'}`}>
+                      <Copy size={18} /> Copiar
+                    </button>
+                    <button onClick={handlePdf} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors">
+                      <Download size={18} /> Gerar PDF
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -613,7 +778,7 @@ Detalhes do Projeto:
         </div>
       </main>
 
-      {/* Hidden PDF Template (Movido para fora da tela de forma segura para não cortar o conteúdo) */}
+      {}
       <div style={{ position: 'absolute', top: '0', left: '-9999px', zIndex: -9999 }}>
         <div ref={pdfTemplateRef} style={{ background: 'white', color: '#0f172a', padding: '40px 50px', fontFamily: 'sans-serif', width: '800px' }}>
           
@@ -655,7 +820,6 @@ Detalhes do Projeto:
         </div>
       </div>
 
-      {/* Toast Notification */}
       <div className={`fixed bottom-5 right-5 flex items-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-xl transition-all duration-300 transform 
         ${toastMessage ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
         <CheckCircle size={20} />

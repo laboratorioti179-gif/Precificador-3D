@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2, Save, Mail, Lock, LogOut, ArrowRight, LockKeyhole, MessageCircle, RefreshCw } from 'lucide-react';
+import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2, Save, Mail, Lock, LogOut, ArrowRight, LockKeyhole, MessageCircle, RefreshCw, Camera, LayoutGrid } from 'lucide-react';
 
 // Credenciais do Supabase
 const supabaseUrl = 'https://yymcybqwtuvymzprudhq.supabase.co';
@@ -85,10 +85,15 @@ export default function App() {
     taxaManutencao: 10,
     taxaPerdas: 10,
     margemLucro: 100,
+    foto: null,
     filamentos: [
       { id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }
     ]
   });
+
+  const [activeTab, setActiveTab] = useState('calculator');
+  const [savedProducts, setSavedProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const [results, setResults] = useState({
     custoFilamento: 0,
@@ -217,11 +222,107 @@ export default function App() {
     setFormData({
       nomePeca: '', nomeCliente: '', tempoImpressao: 18, potenciaImpressora: 120, valorKwh: 0.95,
       depreciacaoHora: 0.35, tempoMaoObra: 40, valorHoraMaoObra: 40, valorMateriaisExtras: 8.50,
-      taxaManutencao: 10, taxaPerdas: 10, margemLucro: 100,
+      taxaManutencao: 10, taxaPerdas: 10, margemLucro: 100, foto: null,
       filamentos: [{ id: '1', tipo: '', cor: '', peso: 180, valorKg: 120 }]
     });
     showToast('Formulário resetado');
   };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Redimensionar a imagem para não pesar no banco de dados (max 600px)
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 600;
+        let scaleSize = 1;
+        
+        if (img.width > MAX_WIDTH) {
+           scaleSize = MAX_WIDTH / img.width;
+        }
+        
+        canvas.width = img.width * scaleSize;
+        canvas.height = img.height * scaleSize;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Converte para Base64 (compressão JPEG 70%)
+        const base64 = canvas.toDataURL('image/jpeg', 0.7);
+        setFormData(prev => ({ ...prev, foto: base64 }));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/orcamentos?select=*&order=criado_em.desc`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${sessionToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) throw new Error('Erro ao buscar produtos');
+      const data = await response.json();
+      
+      // Filtra apenas os produtos do usuário logado
+      const myProducts = data.filter(item => item.dados_formulario?.usuario_email === user?.email);
+      setSavedProducts(myProducts);
+    } catch (error) {
+      showToast('Erro ao carregar produtos');
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    try {
+      // Forçamos o retorno (return=representation) para garantir que a linha foi afetada
+      const response = await fetch(`${supabaseUrl}/rest/v1/orcamentos?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${sessionToken}`,
+          'Prefer': 'return=representation'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Falha no banco de dados');
+      }
+      
+      const responseData = await response.json();
+      
+      // Se o banco retornar um array vazio, significa que a segurança bloqueou a exclusão
+      if (responseData.length === 0) {
+          throw new Error('Bloqueado pelo Supabase. Rode o comando SQL de DELETE.');
+      }
+
+      showToast('Produto excluído');
+      
+      // Atualiza a lista localmente SOMENTE se a exclusão no banco foi um sucesso
+      setSavedProducts(prev => prev.filter(produto => produto.id !== id));
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || 'Erro ao excluir produto');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'products') {
+      fetchProducts();
+    }
+  }, [activeTab]);
 
   const formatBRL = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -377,7 +478,7 @@ export default function App() {
         })
       });
       if (!response.ok) throw new Error('Erro na requisição: ' + response.statusText);
-      showToast('Orçamento salvo no Supabase!');
+      showToast('Salvo');
     } catch (error) {
       console.error(error);
       showToast('Erro ao salvar. Verifique se a tabela existe.');
@@ -514,15 +615,27 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-blue-600 text-white p-2 rounded-lg"><Box size={20} /></div>
-            <span className={`font-bold text-xl tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>PrintPrice 3D</span>
+            <span className={`font-bold text-xl tracking-tight hidden sm:block ${darkMode ? 'text-white' : 'text-slate-900'}`}>PrintPrice 3D</span>
           </div>
+
+          <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-lg">
+            <button onClick={() => setActiveTab('calculator')} className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'calculator' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+              <Calculator size={16} /> <span className="hidden sm:inline">Calculadora</span>
+            </button>
+            <button onClick={() => setActiveTab('products')} className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'products' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+              <LayoutGrid size={16} /> <span className="hidden sm:inline">Produtos</span>
+            </button>
+          </div>
+
           <div className="flex items-center gap-3">
-            <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mr-2 border ${darkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+            <div className={`hidden lg:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mr-2 border ${darkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
               <CheckCircle size={14} /> Assinatura Ativa
             </div>
-            <button onClick={handleReset} className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-blue-500`}>
-              <RotateCcw size={16} /> <span className="hidden sm:inline">Limpar</span>
-            </button>
+            {activeTab === 'calculator' && (
+              <button onClick={handleReset} className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-blue-500`}>
+                <RotateCcw size={16} /> <span className="hidden lg:inline">Limpar</span>
+              </button>
+            )}
             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full transition-colors ${darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -535,50 +648,65 @@ export default function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          
-          <div className="w-full lg:w-2/3 space-y-6">
-            <div className={cardClass}>
-              <h2 className={sectionTitleClass}><Info className="text-blue-500" size={20} /> Dados do Projeto</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Nome da Peça / Projeto</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Box size={16} className="text-slate-400" /></div>
-                    <input type="text" name="nomePeca" value={formData.nomePeca} onChange={handleChange} placeholder="Ex: Action Figure Batman" className={inputClass} />
+        {activeTab === 'calculator' ? (
+          <div className="flex flex-col lg:flex-row gap-8">
+            
+            {/* COLUNA ESQUERDA DA CALCULADORA */}
+            <div className="w-full lg:w-2/3 space-y-6">
+              
+              <div className={cardClass}>
+                <h2 className={sectionTitleClass}><Info className="text-blue-500" size={20} /> Dados do Projeto</h2>
+                
+                <div className="mb-6 flex flex-col sm:flex-row gap-5 items-start">
+                  <div className={`shrink-0 w-32 h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center overflow-hidden relative group transition-colors ${darkMode ? 'border-slate-700 bg-slate-800/50 hover:border-slate-500' : 'border-slate-300 bg-slate-50 hover:border-slate-400'}`}>
+                    {formData.foto ? (
+                      <>
+                        <img src={formData.foto} alt="Produto" className="w-full h-full object-cover" />
+                        <button onClick={() => setFormData(prev => ({...prev, foto: null}))} className="absolute top-1 right-1 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Camera size={28} className="text-slate-400 mb-2" />
+                        <span className="text-xs text-slate-500 font-medium text-center px-2">Adicionar<br/>Foto</span>
+                        <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      </>
+                    )}
                   </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Cliente</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Info size={16} className="text-slate-400" /></div>
-                    <input type="text" name="nomeCliente" value={formData.nomeCliente} onChange={handleChange} placeholder="Ex: João Silva" className={inputClass} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Tempo de Impressão (horas)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-slate-400" /></div>
-                    <input type="number" name="tempoImpressao" value={formData.tempoImpressao} onChange={handleChange} min="0" step="0.5" className={inputClass} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Peso Total (Soma Automática)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-slate-400 text-sm font-bold">g</span></div>
-                    <div className={`${inputClass} flex items-center opacity-70 cursor-not-allowed ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>{pesoTotal}</div>
+                  
+                  <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Nome da Peça / Projeto</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Box size={16} className="text-slate-400" /></div>
+                        <input type="text" name="nomePeca" value={formData.nomePeca} onChange={handleChange} placeholder="Ex: Action Figure Batman" className={inputClass} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Cliente</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Info size={16} className="text-slate-400" /></div>
+                        <input type="text" name="nomeCliente" value={formData.nomeCliente} onChange={handleChange} placeholder="Ex: João Silva" className={inputClass} />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>Tempo de Impressão (horas)</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-slate-400" /></div>
+                        <input type="number" name="tempoImpressao" value={formData.tempoImpressao} onChange={handleChange} min="0" step="0.5" className={inputClass} />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className={cardClass}>
-                <div className={`flex justify-between items-center mb-4 pb-2 border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                <div className={`flex items-center justify-between mb-4 border-b pb-2 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                   <h2 className={`text-lg font-semibold flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
-                    <Package className="text-blue-500" size={20} /> Filamentos
+                    <Package className="text-blue-500" size={20} /> Materiais (Filamentos)
                   </h2>
-                  <button onClick={addFilamento} className="text-sm bg-blue-500/10 text-blue-500 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-blue-500/20 transition-colors font-medium">
+                  <button onClick={addFilamento} className="flex items-center gap-1 text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors font-medium">
                     <Plus size={16} /> Adicionar
                   </button>
                 </div>
@@ -643,204 +771,313 @@ export default function App() {
                   <p className="text-xs mt-1 text-slate-500">Ex: R$2.800 ÷ 8.000h = R$0,35/h</p>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className={cardClass}>
-                <h2 className={sectionTitleClass}><Wrench className="text-blue-500" size={20} /> Mão de Obra (Pós)</h2>
-                <p className="text-xs mb-3 text-slate-500">Remover suportes, lixar, pintar...</p>
-                <div className="space-y-4">
-                  <div>
-                    <label className={labelClass}>Tempo Gasto (minutos)</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-slate-400" /></div>
-                      <input type="number" name="tempoMaoObra" value={formData.tempoMaoObra} onChange={handleChange} min="0" className={inputClass} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={cardClass}>
+                  <h2 className={sectionTitleClass}><Wrench className="text-blue-500" size={20} /> Mão de Obra (Pós)</h2>
+                  <p className="text-xs mb-3 text-slate-500">Remover suportes, lixar, pintar...</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className={labelClass}>Tempo Gasto (minutos)</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-slate-400" /></div>
+                        <input type="number" name="tempoMaoObra" value={formData.tempoMaoObra} onChange={handleChange} min="0" className={inputClass} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Valor da sua Hora</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm font-bold">R$</div>
+                        <input type="number" name="valorHoraMaoObra" value={formData.valorHoraMaoObra} onChange={handleChange} min="0" className={inputClass} />
+                      </div>
                     </div>
                   </div>
+                </div>
+
+                <div className={cardClass}>
+                  <h2 className={sectionTitleClass}><Package className="text-blue-500" size={20} /> Materiais Extras</h2>
+                  <p className="text-xs mb-3 text-slate-500">Cola, tinta, ímãs, embalagem...</p>
                   <div>
-                    <label className={labelClass}>Valor da sua Hora</label>
+                    <label className={labelClass}>Valor Total Extra</label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm font-bold">R$</div>
-                      <input type="number" name="valorHoraMaoObra" value={formData.valorHoraMaoObra} onChange={handleChange} min="0" className={inputClass} />
+                      <input type="number" name="valorMateriaisExtras" value={formData.valorMateriaisExtras} onChange={handleChange} min="0" step="0.1" className={inputClass} />
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className={cardClass}>
-                <h2 className={sectionTitleClass}><Package className="text-blue-500" size={20} /> Materiais Extras</h2>
-                <p className="text-xs mb-3 text-slate-500">Soma: Cola, tinta, primer, embalagem...</p>
-                <div className="mt-8">
-                  <label className={labelClass}>Valor Total de Extras</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm font-bold">R$</div>
-                    <input type="number" name="valorMateriaisExtras" value={formData.valorMateriaisExtras} onChange={handleChange} min="0" step="0.1" className={inputClass} />
+                <h2 className={sectionTitleClass}><Calculator className="text-blue-500" size={20} /> Taxas & Margem de Lucro</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className={labelClass}>Manutenção (%)</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold">%</div>
+                      <input type="number" name="taxaManutencao" value={formData.taxaManutencao} onChange={handleChange} min="0" max="100" className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Perdas (%)</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold">%</div>
+                      <input type="number" name="taxaPerdas" value={formData.taxaPerdas} onChange={handleChange} min="0" max="100" className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={`${labelClass} !text-blue-500 font-bold`}>Margem Lucro (%)</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold text-blue-500">%</div>
+                      <input type="number" name="margemLucro" value={formData.margemLucro} onChange={handleChange} min="0" 
+                        className={`${inputClass} border-blue-500/50 ${darkMode ? 'bg-blue-900/20' : 'bg-blue-50'}`} />
+                    </div>
                   </div>
                 </div>
               </div>
+
             </div>
+            {/* FIM DA COLUNA ESQUERDA DA CALCULADORA */}
 
-            <div className={cardClass}>
-              <h2 className={sectionTitleClass}><Calculator className="text-blue-500" size={20} /> Taxas & Margem de Lucro</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className={labelClass}>Manutenção (%)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold">%</div>
-                    <input type="number" name="taxaManutencao" value={formData.taxaManutencao} onChange={handleChange} min="0" max="100" className={inputClass} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Perdas (%)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold">%</div>
-                    <input type="number" name="taxaPerdas" value={formData.taxaPerdas} onChange={handleChange} min="0" max="100" className={inputClass} />
-                  </div>
-                </div>
-                <div>
-                  <label className={`${labelClass} !text-blue-500 font-bold`}>Margem Lucro (%)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold text-blue-500">%</div>
-                    <input type="number" name="margemLucro" value={formData.margemLucro} onChange={handleChange} min="0" 
-                      className={`${inputClass} border-blue-500/50 ${darkMode ? 'bg-blue-900/20' : 'bg-blue-50'}`} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <div className="w-full lg:w-1/3">
-            <div className={`sticky top-24 rounded-xl border-t-4 border-t-blue-500 overflow-hidden shadow-2xl relative p-6 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-              <div className="absolute -right-8 -top-8 text-blue-500/10 pointer-events-none transform rotate-12">
-                <Calculator size={140} />
-              </div>
-              
-              <div className="relative z-10">
-                <h2 className={`text-xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-slate-900'}`}>Resumo de Custos</h2>
-                
-                <div className="space-y-3 mb-6 text-sm">
-                  <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
-                    <span>Filamento</span>
-                    <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoFilamento)}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
-                    <span>Energia <span className="text-xs opacity-60">({results.consumoKwh.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})} kWh)</span></span>
-                    <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoEnergia)}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
-                    <span>Mão de Obra</span>
-                    <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoMaoObra)}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
-                    <span>Extras</span>
-                    <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(formData.valorMateriaisExtras)}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
-                    <span>Depreciação (Máq.)</span>
-                    <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoDepreciacao)}</span>
-                  </div>
-                  
-                  <div className="pt-2"></div>
-                  
-                  <div className="flex justify-between text-xs opacity-70">
-                    <span>Subtotal</span>
-                    <span>{formatBRL(results.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-orange-500">
-                    <span>Manutenção</span>
-                    <span>{formatBRL(results.custoManutencao)}</span>
-                  </div>
-                  <div className="flex justify-between text-red-500">
-                    <span>Perdas</span>
-                    <span>{formatBRL(results.custoPerdas)}</span>
-                  </div>
-                </div>
-
-                <div className={`p-4 rounded-lg mb-4 border ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                  <p className="text-sm mb-1 opacity-70">Custo Real (Base)</p>
-                  <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoTotalReal)}</p>
-                </div>
-
-                <div className={`p-4 rounded-lg border ${darkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
-                  <div className="flex justify-between items-end mb-2">
-                    <p className="text-sm font-semibold text-blue-500">Preço Sugerido</p>
-                    <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded font-bold">+{formData.margemLucro}% Lucro</span>
-                  </div>
-                  <p className="text-4xl font-black text-blue-500">{formatBRL(results.precoVenda)}</p>
-                  <p className="text-xs mt-2 opacity-70">
-                    Lucro líquido: <span className="font-bold text-emerald-500">{formatBRL(results.lucroLiquido)}</span>
-                  </p>
+            {/* COLUNA DIREITA DA CALCULADORA (RESUMO) */}
+            <div className="w-full lg:w-1/3">
+              <div className={`sticky top-24 rounded-xl border-t-4 border-t-blue-500 overflow-hidden shadow-2xl relative p-6 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                <div className="absolute -right-8 -top-8 text-blue-500/10 pointer-events-none transform rotate-12">
+                  <Calculator size={140} />
                 </div>
                 
-                <div className="mt-6">
-                  <button onClick={handleSave} disabled={isSaving} className={`w-full py-2.5 mb-3 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors ${darkMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                    <Save size={18} /> {isSaving ? 'Salvando...' : 'Salvar no Banco'}
-                  </button>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={handleCopy} className={`w-full py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors border
-                      ${darkMode ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'}`}>
-                      <Copy size={18} /> Copiar
+                <div className="relative z-10">
+                  <h2 className={`text-xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-slate-900'}`}>Resumo de Custos</h2>
+                  
+                  <div className="space-y-3 mb-6 text-sm">
+                    <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
+                      <span>Filamento</span>
+                      <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoFilamento)}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
+                      <span>Energia <span className="text-xs opacity-60">({results.consumoKwh.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})} kWh)</span></span>
+                      <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoEnergia)}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
+                      <span>Mão de Obra</span>
+                      <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoMaoObra)}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
+                      <span>Extras</span>
+                      <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(formData.valorMateriaisExtras)}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-dashed pb-2 border-slate-500/30">
+                      <span>Depreciação (Máq.)</span>
+                      <span className={`font-medium ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoDepreciacao)}</span>
+                    </div>
+                    
+                    <div className="pt-2"></div>
+                    
+                    <div className="flex justify-between text-xs opacity-70">
+                      <span>Subtotal</span>
+                      <span>{formatBRL(results.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-orange-500">
+                      <span>Manutenção</span>
+                      <span>{formatBRL(results.custoManutencao)}</span>
+                    </div>
+                    <div className="flex justify-between text-red-500">
+                      <span>Perdas</span>
+                      <span>{formatBRL(results.custoPerdas)}</span>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 rounded-lg mb-4 border ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                    <p className="text-sm mb-1 opacity-70">Custo Real (Base)</p>
+                    <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{formatBRL(results.custoTotalReal)}</p>
+                  </div>
+
+                  <div className={`p-4 rounded-lg border ${darkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
+                    <div className="flex justify-between items-end mb-2">
+                      <p className="text-sm font-semibold text-blue-500">Preço Sugerido</p>
+                      <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded font-bold">+{formData.margemLucro}% Lucro</span>
+                    </div>
+                    <p className="text-4xl font-black text-blue-500">{formatBRL(results.precoVenda)}</p>
+                    <p className="text-xs mt-2 opacity-70">
+                      Lucro líquido: <span className="font-bold text-emerald-500">{formatBRL(results.lucroLiquido)}</span>
+                    </p>
+                  </div>
+                  
+                  <div className="mt-6">
+                    <button onClick={handleSave} disabled={isSaving} className={`w-full py-2.5 mb-3 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors ${darkMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                      <Save size={18} /> {isSaving ? 'Salvando...' : 'Salvar no Banco'}
                     </button>
-                    <button onClick={handlePdf} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors">
-                      <Download size={18} /> Gerar PDF
-                    </button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={handleCopy} className={`w-full py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors border
+                        ${darkMode ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'}`}>
+                        <Copy size={18} /> Copiar
+                      </button>
+                      <button onClick={handlePdf} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors">
+                        <Download size={18} /> Gerar PDF
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+            {/* FIM DA COLUNA DIREITA DA CALCULADORA */}
+            
+          </div> 
+        ) : (
+          /* ABA DE PRODUTOS SALVOS */
+          <div className="space-y-6 fade-in">
+            <div className="flex items-center justify-between mb-6 border-b pb-4 border-slate-200 dark:border-slate-800">
+              <div>
+                <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Meus Produtos</h1>
+                <p className="text-sm opacity-70 mt-1">Histórico de precificações salvas na nuvem.</p>
+              </div>
+              <button onClick={fetchProducts} className="flex items-center gap-2 bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 px-4 py-2 rounded-lg font-medium transition-colors">
+                <RefreshCw size={18} className={loadingProducts ? 'animate-spin' : ''} /> 
+                <span className="hidden sm:inline">Atualizar</span>
+              </button>
+            </div>
+
+            {loadingProducts ? (
+              <div className="flex justify-center py-20">
+                <RefreshCw size={40} className="animate-spin text-blue-500 opacity-50" />
+              </div>
+            ) : savedProducts.length === 0 ? (
+              <div className={`text-center py-24 rounded-xl border-2 border-dashed ${darkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-300 bg-white'}`}>
+                <Package size={60} className="mx-auto text-slate-400 mb-4 opacity-30" />
+                <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Nenhum produto salvo</h3>
+                <p className="opacity-70 mt-2 max-w-sm mx-auto mb-6">Vá para a aba Calculadora, crie um orçamento e clique em "Salvar no Banco" para visualizar aqui.</p>
+                <button onClick={() => setActiveTab('calculator')} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-lg font-medium shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2 mx-auto">
+                  <Calculator size={18} /> Criar Precificação
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {savedProducts.map((produto) => {
+                  const dataCriacao = new Date(produto.criado_em).toLocaleDateString('pt-BR');
+                  const foto = produto.dados_formulario?.foto;
+                  const tempoH = produto.dados_formulario?.tempoImpressao;
+                  
+                  return (
+                    <div key={produto.id} className={`rounded-xl overflow-hidden border group transition-all duration-300 hover:shadow-xl ${darkMode ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                      <div className={`h-48 w-full relative flex items-center justify-center bg-slate-100 dark:bg-slate-800 ${!foto && 'border-b border-slate-200 dark:border-slate-800'}`}>
+                        {foto ? (
+                          <img src={foto} alt={produto.peca} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        ) : (
+                          <Box size={48} className="text-slate-400 opacity-20" />
+                        )}
+                        <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-xs font-semibold px-2 py-1 rounded">
+                          {dataCriacao}
+                        </div>
+                        <button onClick={() => handleDeleteProduct(produto.id)} className="absolute top-3 right-3 bg-red-500/90 hover:bg-red-500 text-white p-2 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity transform hover:scale-105" title="Excluir">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      <div className="p-5">
+                        <h3 className={`font-bold text-lg mb-1 truncate ${darkMode ? 'text-white' : 'text-slate-900'}`} title={produto.peca}>
+                          {produto.peca || 'Sem Nome'}
+                        </h3>
+                        <p className="text-sm opacity-70 flex items-center gap-1.5 mb-5 truncate">
+                          <Info size={14} /> {produto.cliente || 'Sem Cliente'}
+                        </p>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <div className={`p-3 rounded-lg border ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                            <p className="text-xs opacity-70 mb-1">Custo Real</p>
+                            <p className="font-semibold">{formatBRL(produto.custo_real)}</p>
+                          </div>
+                          <div className={`p-3 rounded-lg border ${darkMode ? 'bg-blue-900/20 border-blue-800/50' : 'bg-blue-50 border-blue-200'}`}>
+                            <p className="text-xs text-blue-500 font-medium mb-1">Preço Venda</p>
+                            <p className="font-bold text-blue-500">{formatBRL(produto.preco_venda)}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center text-xs opacity-70 pt-4 border-t border-dashed border-slate-300 dark:border-slate-700">
+                          <span className="flex items-center gap-1"><Clock size={12}/> {tempoH}h imp.</span>
+                          <span className="flex items-center gap-1 text-emerald-500 font-medium"><Zap size={12}/> Lucro: {formatBRL(produto.lucro_liquido)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </main>
 
-      {}
-      <div style={{ position: 'absolute', top: '0', left: '-9999px', zIndex: -9999 }}>
-        <div ref={pdfTemplateRef} style={{ background: 'white', color: '#0f172a', padding: '40px 50px', fontFamily: 'sans-serif', width: '800px' }}>
-          
-          <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '40px', textAlign: 'center' }}>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px' }}>Orçamento</h1>
-            <p id="pdf-date-text" style={{ margin: '10px 0 0 0', color: '#64748b', fontSize: '14px' }}>Data de emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}</p>
-          </div>
+      {/* Template PDF Oculto (Fora da tela para não cortar) */}
+      <div 
+        ref={pdfTemplateRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: '-9999px',
+          background: 'white',
+          color: '#1e293b',
+          padding: '60px',
+          fontFamily: 'sans-serif',
+          width: '800px',
+          minHeight: '800px'
+        }}
+      >
+        <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '40px', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: '0', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '2px' }}>
+            Orçamento
+          </h1>
+          <p style={{ margin: '10px 0 0 0', color: '#64748b', fontSize: '14px' }} id="pdf-date-text"></p>
+        </div>
 
-          <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '25px', marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: '600', margin: '0 0 15px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', color: '#0f172a' }}>Detalhes do Projeto</h2>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '12px 0', width: '30%', color: '#64748b', fontWeight: '500' }}>Cliente:</td>
-                  <td style={{ padding: '12px 0', fontWeight: '600', color: '#0f172a' }}>{formData.nomeCliente || 'Não informado'}</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Peça / Projeto:</td>
-                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.nomePeca || 'Não informado'}</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Material(is):</td>
-                  <td style={{ padding: '12px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{detalhesFilamentos || 'Não informado'}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ backgroundColor: '#eff6ff', border: '2px solid #bfdbfe', borderRadius: '12px', padding: '35px', textAlign: 'center', marginBottom: '40px' }}>
-            <p style={{ margin: '0 0 10px 0', fontSize: '16px', fontWeight: '600', color: '#1e40af' }}>Valor Total do Investimento</p>
-            <p style={{ margin: '0', fontSize: '48px', fontWeight: '900', color: '#1e3a8a' }}>{formatBRL(results.precoVenda)}</p>
-            <p style={{ margin: '15px 0 0 0', fontSize: '13px', color: '#3b82f6' }}>* Este orçamento tem validade de 15 dias a partir da data de emissão.</p>
-          </div>
+        <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '30px', marginBottom: '50px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '600', margin: '0 0 20px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', color: '#0f172a' }}>
+            Detalhes do Projeto
+          </h2>
           
-          <div style={{ marginTop: '80px', textAlign: 'center', fontSize: '13px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
-            <strong>PrintPrice 3D</strong><br/>
-            Agradecemos a preferência!
-          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px' }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: '14px 0', width: '35%', color: '#64748b', fontWeight: '500' }}>Cliente:</td>
+                <td style={{ padding: '14px 0', fontWeight: '600', color: '#0f172a' }}>{formData.nomeCliente || 'Não informado'}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Peça / Projeto:</td>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.nomePeca || 'Não informado'}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Tempo de Impressão:</td>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.tempoImpressao}h</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Materiais (Filamentos):</td>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{detalhesFilamentos || 'Não informado'}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Peso Total Estimado:</td>
+                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{pesoTotal}g</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ backgroundColor: '#eff6ff', border: '2px solid #bfdbfe', borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 15px 0', fontSize: '18px', fontWeight: '600', color: '#1e40af' }}>Valor Total do Investimento</p>
+          <p style={{ margin: '0', fontSize: '54px', fontWeight: '900', color: '#1e3a8a' }}>
+            {formatBRL(results.precoVenda)}
+          </p>
+          <p style={{ margin: '20px 0 0 0', fontSize: '14px', color: '#3b82f6' }}>
+            * Este orçamento tem validade de 15 dias a partir da data de emissão.
+          </p>
+        </div>
+        
+        <div style={{ marginTop: '100px', textAlign: 'center', fontSize: '14px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '25px' }}>
+          <strong style={{ color: '#64748b' }}>PrintPrice 3D</strong><br/>
+          Agradecemos a preferência!
         </div>
       </div>
 
-      <div className={`fixed bottom-5 right-5 flex items-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-xl transition-all duration-300 transform 
-        ${toastMessage ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
+      <div className={`fixed bottom-5 right-5 flex items-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-xl transition-all duration-300 transform z-50 ${toastMessage ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
         <CheckCircle size={20} />
         <span className="font-medium">{toastMessage}</span>
       </div>
-
     </div>
   );
 }

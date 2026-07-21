@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Copy, RotateCcw, Box, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2, Save, Mail, Lock, LogOut, ArrowRight, LockKeyhole, MessageCircle, RefreshCw, Camera, LayoutGrid, X, ExternalLink, FileText } from 'lucide-react';
+import { Download, Copy, RotateCcw, Clock, Zap, Wrench, Package, Info, Calculator, Sun, Moon, CheckCircle, Plus, Trash2, Save, Mail, Lock, LogOut, ArrowRight, LockKeyhole, MessageCircle, RefreshCw, Camera, LayoutGrid, X, ExternalLink, FileText } from 'lucide-react';
+
+// Componente customizado do Hexágono 3D para o UI
+const Hexagon3D = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path d="M100 10 l 78 45 l -78 45 l -78 -45 z" fill="currentColor" fillOpacity="0.4"/>
+    <path d="M22 55 v 90 l 78 45 v -90 z" fill="currentColor" fillOpacity="0.75"/>
+    <path d="M178 55 v 90 l -78 45 v -90 z" fill="currentColor" fillOpacity="1"/>
+  </svg>
+);
 
 // Credenciais do Supabase
 const supabaseUrl = 'https://yymcybqwtuvymzprudhq.supabase.co';
@@ -27,8 +36,9 @@ export default function App() {
     metaAppleCapable.content = "yes";
     document.head.appendChild(metaAppleCapable);
     
-    const iconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png";
-    const appleIconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968322.png";
+    // Ícone vetorizado do Hexágono 3D (para que fique em alta resolução como atalho no celular)
+    const iconUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cpath d='M100 10l78 45-78 45-78-45z' fill='%2360a5fa'/%3E%3Cpath d='M22 55v90l78 45v-90z' fill='%233b82f6'/%3E%3Cpath d='M178 55v90l-78 45v-90z' fill='%231d4ed8'/%3E%3C/svg%3E";
+    const appleIconUrl = iconUrl;
 
     const linkFavicon = document.createElement('link');
     linkFavicon.rel = "icon";
@@ -536,7 +546,7 @@ export default function App() {
         <div className={`w-full max-w-md p-8 rounded-2xl shadow-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="flex flex-col items-center mb-8">
             <div className="bg-blue-600 text-white p-4 rounded-2xl mb-5 shadow-lg shadow-blue-500/30">
-              <Box size={36} />
+              <Hexagon3D size={36} />
             </div>
             <h1 className={`text-3xl font-bold tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>PrintPrice 3D</h1>
             <p className="text-sm opacity-70 mt-2">
@@ -642,7 +652,7 @@ export default function App() {
       <nav className={`sticky top-0 z-50 border-b backdrop-blur-md ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-600 text-white p-2 rounded-lg"><Box size={20} /></div>
+            <div className="bg-blue-600 text-white p-2 rounded-lg"><Hexagon3D size={20} /></div>
             <span className={`font-bold text-xl tracking-tight hidden sm:block ${darkMode ? 'text-white' : 'text-slate-900'}`}>PrintPrice 3D</span>
           </div>
 
@@ -707,7 +717,7 @@ export default function App() {
                     <div>
                       <label className={labelClass}>Nome da Peça / Projeto</label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Box size={16} className="text-slate-400" /></div>
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Hexagon3D size={16} className="text-slate-400" /></div>
                         <input type="text" name="nomePeca" value={formData.nomePeca} onChange={handleChange} placeholder="Ex: Action Figure Batman" className={inputClass} />
                       </div>
                     </div>
@@ -994,7 +1004,7 @@ export default function App() {
                         {foto ? (
                           <img src={foto} alt={produto.peca} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         ) : (
-                          <Box size={48} className="text-slate-400 opacity-20" />
+                          <Hexagon3D size={48} className="text-slate-400 opacity-20" />
                         )}
                         <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-xs font-semibold px-2 py-1 rounded">
                           {dataCriacao}
@@ -1085,7 +1095,7 @@ export default function App() {
               <div className={`p-5 border-b flex items-center justify-between sticky top-0 z-10 backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600/10 text-blue-500 rounded-xl">
-                    <Box size={24} />
+                    <Hexagon3D size={24} />
                   </div>
                   <div>
                     <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{selectedProduct.peca || 'Produto sem nome'}</h2>
@@ -1108,7 +1118,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className={`h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center ${darkMode ? 'border-slate-800 bg-slate-800/30 text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
-                      <Box size={40} className="opacity-40 mb-1" />
+                      <Hexagon3D size={40} className="opacity-40 mb-1" />
                       <span className="text-xs font-medium">Sem imagem</span>
                     </div>
                   )}

@@ -508,18 +508,21 @@ export default function App() {
     try {
       const response = await fetch(`${supabaseUrl}/rest/v1/orcamentos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${sessionToken}`, 'Prefer': 'return=minimal' },
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${sessionToken || supabaseKey}`, 'Prefer': 'return=minimal' },
         body: JSON.stringify({
           cliente: formData.nomeCliente || 'Não informado', peca: formData.nomePeca || 'Projeto 3D',
           preco_venda: results.precoVenda, custo_real: results.custoTotalReal, lucro_liquido: results.lucroLiquido,
           dados_formulario: { ...formData, usuario_email: user?.email }
         })
       });
-      if (!response.ok) throw new Error('Erro na requisição: ' + response.statusText);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.hint || 'Erro na requisição: ' + response.statusText);
+      }
       showToast('Salvo');
     } catch (error) {
       console.error(error);
-      showToast('Erro ao salvar. Verifique se a tabela existe.');
+      showToast(error.message || 'Erro ao salvar. Verifique se a tabela existe.');
     } finally {
       setIsSaving(false);
     }

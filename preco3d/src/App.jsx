@@ -495,12 +495,54 @@ export default function App() {
 
   const generatePdfAction = () => {
     const element = pdfTemplateRef.current;
+    
+    // Traz o elemento temporariamente para a área visível da tela para evitar renderização em branco (bug do html2canvas)
+    element.style.left = '0';
+    element.style.zIndex = '-9999';
+    element.style.opacity = '0.01';
+
     let nomeArquivo = 'Orcamento_Impressao_3D';
     if(formData.nomeCliente) nomeArquivo += `_${formData.nomeCliente.replace(/\s+/g, '_')}`;
     nomeArquivo += '.pdf';
 
     const opt = { margin: 0.4, filename: nomeArquivo, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
-    window.html2pdf().set(opt).from(element).save().then(() => showToast("PDF gerado!")).catch(() => showToast("Erro ao gerar PDF."));
+    
+    window.html2pdf().set(opt).from(element).output('blob').then((pdfBlob) => {
+      // Devolve para fora da tela
+      element.style.left = '-9999px';
+      element.style.opacity = '1';
+
+      const file = new File([pdfBlob], nomeArquivo, { type: 'application/pdf' });
+      
+      const baixarPdfNormal = () => {
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nomeArquivo;
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast("PDF salvo!");
+      };
+      
+      // Tenta abrir o menu de compartilhamento nativo do celular (WhatsApp, E-mail, etc.)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({
+          files: [file],
+          title: 'Orçamento 3D',
+          text: 'Segue o orçamento em anexo.'
+        }).then(() => showToast("Compartilhado com sucesso!")).catch(() => {
+          // Se o usuário cancelar ou houver erro de permissão no celular, faz o download normal
+          baixarPdfNormal();
+        });
+      } else {
+        // Se não estiver no celular ou não suportar share nativo, baixa o arquivo
+        baixarPdfNormal();
+      }
+    }).catch(() => {
+      element.style.left = '-9999px';
+      element.style.opacity = '1';
+      showToast("Erro ao gerar PDF.");
+    });
   };
 
   const handleSave = async () => {

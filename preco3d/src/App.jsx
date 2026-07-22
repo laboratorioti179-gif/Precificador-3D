@@ -471,78 +471,11 @@ export default function App() {
   const handleCopy = () => {
     const nome = formData.nomePeca || 'Projeto 3D';
     const cliente = formData.nomeCliente ? ` (Cliente: ${formData.nomeCliente})` : '';
-    const orcamentoTexto = `Orçamento: ${nome}${cliente}\n----------------------------------\nCusto Base: ${formatBRL(results.custoTotalReal)}\nLucro Aplicado: ${formData.margemLucro}%\n\nPREÇO FINAL SUGERIDO: ${formatBRL(results.precoVenda)}\n----------------------------------\nDetalhes do Projeto:\n- Peso estimado: ${pesoTotal}g\n- Tempo de impressão: ${formData.tempoImpressao}h\n- Materiais: ${detalhesFilamentos}`;
+    const orcamentoTexto = `Orçamento: ${nome}${cliente}\n----------------------------------\nValor Total: ${formatBRL(results.precoVenda)}\n----------------------------------\nDetalhes do Projeto:\n- Peso estimado: ${pesoTotal}g\n- Tempo de impressão: ${formData.tempoImpressao}h\n- Materiais: ${detalhesFilamentos}`;
     
     navigator.clipboard.writeText(orcamentoTexto)
       .then(() => showToast('Copiado com sucesso!'))
       .catch(() => showToast('Erro ao copiar'));
-  };
-
-  const handlePdf = () => {
-    showToast('Gerando PDF...');
-    const dateElement = document.getElementById('pdf-date-text');
-    if (dateElement) dateElement.innerText = `Data de emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`;
-
-    if (typeof window.html2pdf === 'undefined') {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-      script.onload = generatePdfAction;
-      document.body.appendChild(script);
-    } else {
-      generatePdfAction();
-    }
-  };
-
-  const generatePdfAction = () => {
-    const element = pdfTemplateRef.current;
-    
-    // Traz o elemento temporariamente para a área visível da tela para evitar renderização em branco (bug do html2canvas)
-    element.style.left = '0';
-    element.style.zIndex = '-9999';
-    element.style.opacity = '0.01';
-
-    let nomeArquivo = 'Orcamento_Impressao_3D';
-    if(formData.nomeCliente) nomeArquivo += `_${formData.nomeCliente.replace(/\s+/g, '_')}`;
-    nomeArquivo += '.pdf';
-
-    const opt = { margin: 0.4, filename: nomeArquivo, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
-    
-    window.html2pdf().set(opt).from(element).output('blob').then((pdfBlob) => {
-      // Devolve para fora da tela
-      element.style.left = '-9999px';
-      element.style.opacity = '1';
-
-      const file = new File([pdfBlob], nomeArquivo, { type: 'application/pdf' });
-      
-      const baixarPdfNormal = () => {
-        const url = URL.createObjectURL(pdfBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = nomeArquivo;
-        link.click();
-        URL.revokeObjectURL(url);
-        showToast("PDF salvo!");
-      };
-      
-      // Tenta abrir o menu de compartilhamento nativo do celular (WhatsApp, E-mail, etc.)
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({
-          files: [file],
-          title: 'Orçamento 3D',
-          text: 'Segue o orçamento em anexo.'
-        }).then(() => showToast("Compartilhado com sucesso!")).catch(() => {
-          // Se o usuário cancelar ou houver erro de permissão no celular, faz o download normal
-          baixarPdfNormal();
-        });
-      } else {
-        // Se não estiver no celular ou não suportar share nativo, baixa o arquivo
-        baixarPdfNormal();
-      }
-    }).catch(() => {
-      element.style.left = '-9999px';
-      element.style.opacity = '1';
-      showToast("Erro ao gerar PDF.");
-    });
   };
 
   const handleSave = async () => {
@@ -986,23 +919,20 @@ export default function App() {
                   </div>
                   
                   <div className="mt-6">
-                    <button onClick={handleSave} disabled={isSaving} className={`w-full py-2.5 mb-3 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors ${darkMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                      <Save size={18} /> {isSaving ? 'Salvando...' : 'Salvar no Banco'}
-                    </button>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button onClick={handleCopy} className={`w-full py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors border
-                        ${darkMode ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'}`}>
-                        <Copy size={18} /> Copiar
-                      </button>
-                      <button onClick={handlePdf} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors">
-                        <Download size={18} /> Gerar PDF
-                      </button>
-                    </div>
-                  </div>
+                <button onClick={handleSave} disabled={isSaving} className={`w-full py-2.5 mb-3 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors ${darkMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                  <Save size={18} /> {isSaving ? 'Salvando...' : 'Salvar no Banco'}
+                </button>
+                <div className="grid grid-cols-1 gap-3">
+                  <button onClick={handleCopy} className={`w-full py-2.5 rounded-lg flex justify-center items-center gap-2 font-medium transition-colors border
+                    ${darkMode ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'}`}>
+                    <Copy size={18} /> Copiar
+                  </button>
                 </div>
               </div>
             </div>
-            {/* FIM DA COLUNA DIREITA DA CALCULADORA */}
+          </div>
+        </div>
+        {/* FIM DA COLUNA DIREITA DA CALCULADORA */}
             
           </div> 
         ) : (
@@ -1305,75 +1235,6 @@ export default function App() {
           </div>
         );
       })()}
-
-      {/* Template PDF Oculto (Fora da tela para não cortar) */}
-      <div 
-        ref={pdfTemplateRef}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: '-9999px',
-          background: 'white',
-          color: '#1e293b',
-          padding: '60px',
-          fontFamily: 'sans-serif',
-          width: '800px',
-          minHeight: '800px'
-        }}
-      >
-        <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '40px', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: '0', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '2px' }}>
-            Orçamento
-          </h1>
-          <p style={{ margin: '10px 0 0 0', color: '#64748b', fontSize: '14px' }} id="pdf-date-text"></p>
-        </div>
-
-        <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '30px', marginBottom: '50px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '600', margin: '0 0 20px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', color: '#0f172a' }}>
-            Detalhes do Projeto
-          </h2>
-          
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px' }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: '14px 0', width: '35%', color: '#64748b', fontWeight: '500' }}>Cliente:</td>
-                <td style={{ padding: '14px 0', fontWeight: '600', color: '#0f172a' }}>{formData.nomeCliente || 'Não informado'}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Peça / Projeto:</td>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.nomePeca || 'Não informado'}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Tempo de Impressão:</td>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{formData.tempoImpressao}h</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Materiais (Filamentos):</td>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{detalhesFilamentos || 'Não informado'}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', color: '#64748b', fontWeight: '500' }}>Peso Total Estimado:</td>
-                <td style={{ padding: '14px 0', borderTop: '1px dashed #e2e8f0', fontWeight: '600', color: '#0f172a' }}>{pesoTotal}g</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ backgroundColor: '#eff6ff', border: '2px solid #bfdbfe', borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
-          <p style={{ margin: '0 0 15px 0', fontSize: '18px', fontWeight: '600', color: '#1e40af' }}>Valor Total do Investimento</p>
-          <p style={{ margin: '0', fontSize: '54px', fontWeight: '900', color: '#1e3a8a' }}>
-            {formatBRL(results.precoVenda)}
-          </p>
-          <p style={{ margin: '20px 0 0 0', fontSize: '14px', color: '#3b82f6' }}>
-            * Este orçamento tem validade de 15 dias a partir da data de emissão.
-          </p>
-        </div>
-        
-        <div style={{ marginTop: '100px', textAlign: 'center', fontSize: '14px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '25px' }}>
-          <strong style={{ color: '#64748b' }}>PrintPrice 3D</strong><br/>
-          Agradecemos a preferência!
-        </div>
-      </div>
 
       <div className={`fixed bottom-5 right-5 flex items-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-xl transition-all duration-300 transform z-50 ${toastMessage ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
         <CheckCircle size={20} />
